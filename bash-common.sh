@@ -3,9 +3,11 @@
 # Common utility functions for bash scripts,
 # - f -- fatal, use like `some_cmd || f "Some cmd failed"`
 # - d -- debug, use like `d "This is a debug message"`
-# - t -- timer, use like `tm some_cmd`
+# - t -- timer, use like `t some_cmd` as a wrapper
 #
-# Debug and timer is only displayed when DEBUG=1
+# Source this bash like so: `. bash-common.sh`
+#
+# Debug and timer is only printed when DEBUG=1
 # Output is printed as JSON when JSON_OUTPUT=1
 #
 
