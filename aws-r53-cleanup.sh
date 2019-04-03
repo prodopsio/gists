@@ -44,7 +44,7 @@ retry tm aws route53 list-resource-record-sets \
     --max-items=1 --page-size=10 > "${TMPFILE}"
 NEXT_TOKEN="$(jq -r -c .NextToken "${TMPFILE}")"
 
-while [ -n "$NEXT_TOKEN" ]; do
+while [ -n "$NEXT_TOKEN" ] && [ "$NEXT_TOKEN" != "null" ]; do
     if [ -n "$ALIAS_TARGET" ] && [ "$ALIAS_TARGET" != "null" ]; then
         ELB_NAME="$(echo "$ALIAS_TARGET" | sed -e 's!^\(dualstack.\)*\([^-.]*\).*!\2!')"
         debug "Checking if ELB ${ELB_NAME} exists"
@@ -63,3 +63,5 @@ while [ -n "$NEXT_TOKEN" ]; do
     NEXT_TOKEN="$(jq -r -c .NextToken "${TMPFILE}")"
     ALIAS_TARGET="$(jq -r -c .ResourceRecordSets[0].AliasTarget.DNSName "${TMPFILE}")"
 done
+
+debug "Done."
