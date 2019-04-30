@@ -45,7 +45,8 @@ retry tm aws route53 list-resource-record-sets \
 NEXT_TOKEN="$(jq -r -c .NextToken "${TMPFILE}")"
 
 while [ -n "$NEXT_TOKEN" ] && [ "$NEXT_TOKEN" != "null" ]; do
-    if [ -n "$ALIAS_TARGET" ] && [ "$ALIAS_TARGET" != "null" ]; then
+    ALIAS_TARGET="$(jq -r -c '.ResourceRecordSets[0].AliasTarget.DNSName' "${TMPFILE}")"
+    if [ -n "$ALIAS_TARGET" ] && [ "$ALIAS_TARGET" != "null" ] && [[ "$ALIAS_TARGET" =~ \.elb\.amazonaws\.com ]]; then
         ELB_NAME="$(echo "$ALIAS_TARGET" | sed -e 's!^\(dualstack.\)*\([^-.]*\).*!\2!')"
         debug "Checking if ELB ${ELB_NAME} exists"
         if tm aws elb describe-load-balancers --load-balancer-names "${ELB_NAME}" --max-items=1 2>&1 \
@@ -54,14 +55,16 @@ while [ -n "$NEXT_TOKEN" ] && [ "$NEXT_TOKEN" != "null" ]; do
         else
             debug "ELB exists"
         fi
+    else
+      debug "Target is not ALIAS or the alias target is not an ELB"
     fi
+
     debug "Finding next Route53 record in zone ${R53_HOSTED_ZONE_ID}..."
     retry tm aws route53 list-resource-record-sets \
         --hosted-zone-id "${R53_HOSTED_ZONE_ID}" \
         --max-items=1 --page-size=10 \
         --starting-token "${NEXT_TOKEN}" > "${TMPFILE}"
     NEXT_TOKEN="$(jq -r -c .NextToken "${TMPFILE}")"
-    ALIAS_TARGET="$(jq -r -c .ResourceRecordSets[0].AliasTarget.DNSName "${TMPFILE}")"
 done
 
 debug "Done."
