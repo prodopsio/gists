@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-ecr-keys
+  namespace: <NAMESPACE>
+data:
+  awsAccessKeyId: <BASE64 encrypted access key>
+  awsSecretAccessKey: <BASE64 encrypted secret key>
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: ecr-authentication
+  namespace: <NAMESPACE>
+spec:
+  schedule: "0 */8 * * *"
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 4
+      template:
+        spec:
+          serviceAccountName: <A service account with secrets access>
+          terminationGracePeriodSeconds: 0
+          restartPolicy: Never
+          containers:
+          - name: kubectl
+            imagePullPolicy: IfNotPresent
+            image: prodopsio/kubectl-aws-bash
+            command:
+            - "/bin/bash"
+            - "-c"
+            - |
+              set -x
+              regex="docker login -u (.+) -p (.+) https://(.+)"
+              if [[ $(aws ecr get-login --no-include-email --region <AWS REGION>) =~ $regex ]]; then
+                login=$(echo "${BASH_REMATCH[1]}:${BASH_REMATCH[2]}" | base64 | tr -d '\n')
+                echo "Configuring registry ${BASH_REMATCH[3]}..."
+                dockerconfig="{\"auths\":{\"${BASH_REMATCH[3]}\":{\"auth\": \"${login}\"}}}"
+                dockerconfigjson=$(echo ${dockerconfig} | base64 | tr -d '\n')
+                secret="apiVersion: v1\nkind: Secret\nmetadata:\n  name: <Existing dockerconfig secret name>\ndata:\n  \
+                        .dockerconfigjson: ${dockerconfigjson}\ntype: kubernetes.io/dockerconfigjson"
+                echo -e ${secret} | kubectl replace -f - --force
+              fi
+            env:
+            - name: AWS_DEFAULT_REGION
+              value: <REGION>
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-ecr-keys
+                  key: awsAccessKeyId
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-ecr-keys
+                  key: awsSecretAccessKey
