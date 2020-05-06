@@ -52,7 +52,6 @@ def remove_old_queues(queues):
             print('Deleting {} [dryrun:{}]'.format(url, DRY_RUN))
             if not DRY_RUN:
                 delete_quque(sqs_client, url)
-            break
 
 
 if __name__ == '__main__':
